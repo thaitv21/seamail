@@ -1,0 +1,42 @@
+{
+  "name": "sea-mail",
+  "version": "0.1.0",
+  "description": "AI mail assistant: an MCP server over an IMAP mailbox",
+  "type": "module",
+  "bin": {
+    "sea-mail": "dist/cli/index.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "test:integration": "docker compose -f docker-compose.test.yml up -d && vitest run -c vitest.integration.config.ts",
+    "test:all": "npm run typecheck && npm test && npm run test:integration"
+  },
+  "dependencies": {
+    "@inquirer/prompts": "^8.7.3",
+    "@modelcontextprotocol/sdk": "^1.32.1",
+    "@napi-rs/keyring": "^2.1.1",
+    "better-sqlite3": "^13.0.3",
+    "html-to-text": "^10.0.1",
+    "imapflow": "^2.5.2",
+    "mailparser": "^3.9.40",
+    "nodemailer": "^10.1.2",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^9.6.0",
+    "@types/html-to-text": "^9.0.4",
+    "@types/mailparser": "^3.9.0",
+    "@types/node": "^26.6.5",
+    "@types/nodemailer": "^8.0.2",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.5"
+  }
+}
