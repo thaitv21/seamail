@@ -130,7 +130,10 @@ export class Syncer {
     try {
       return { kind: 'part', type: part.type, content: await session.downloadPart(meta.uid, part.part) };
     } catch (err) {
-      log(`Could not download the body of UID ${meta.uid}: ${(err as Error).message}`);
+      const mapped = mapImapError(err);
+      // A dropped connection is not the message's fault: abort so the batch is not committed and the next sync retries it.
+      if (mapped instanceof MailError && mapped.code === 'IMAP_UNAVAILABLE') throw mapped;
+      log(`Could not download the body of UID ${meta.uid}: ${mapped.message}`);
       return { kind: 'failed' };
     }
   }

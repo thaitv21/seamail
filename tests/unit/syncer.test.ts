@@ -3,7 +3,7 @@ import type { ImapSession } from '../../src/core/imap/client.js';
 import type { RawMessage } from '../../src/core/imap/parse.js';
 import { openDb } from '../../src/core/store/db.js';
 import { Repo } from '../../src/core/store/repo.js';
-import { Syncer } from '../../src/core/sync/syncer.js';
+import { MAX_SOURCE_BYTES, Syncer } from '../../src/core/sync/syncer.js';
 
 interface FakeMail {
   uid: number;
@@ -114,6 +114,36 @@ describe('Syncer with a fake session', () => {
       });
       await expect(makeSyncer(session).sync()).rejects.toMatchObject({ code: 'AUTH_FAILED' });
       expect(repo.getMeta('last_synced_at')).toBeNull();
+    });
+  });
+
+  describe('a large message whose body download fails', () => {
+    const big: FakeMail = { uid: 2, size: MAX_SOURCE_BYTES + 1, subject: 'Hợp đồng' };
+
+    it('aborts the run and stores nothing when the connection drops', async () => {
+      const session = fakeSession({
+        folders: { INBOX: [{ uid: 1 }, big] },
+        downloadPart: async () => {
+          throw codedError('NoConnection', 'Connection not available');
+        },
+      });
+      await expect(makeSyncer(session).sync()).rejects.toMatchObject({ code: 'IMAP_UNAVAILABLE' });
+      expect(repo.countMessages()).toBe(0);
+      expect(repo.getMeta('last_synced_at')).toBeNull();
+    });
+
+    it('stores the message with parseError when the server refuses the part', async () => {
+      const session = fakeSession({
+        folders: { INBOX: [{ uid: 1 }, big] },
+        downloadPart: async () => {
+          throw new Error('NO part not found');
+        },
+      });
+      const result = await makeSyncer(session).sync();
+      expect(result.failedFolders).toEqual([]);
+      const rows = repo.search({ fts: null, limit: 50 }).rows;
+      expect(rows.map((m) => [m.uid, m.parseError])).toEqual(expect.arrayContaining([[1, false], [2, true]]));
+      expect(rows.find((m) => m.uid === 2)?.bodyText).toBe('');
     });
   });
 });
