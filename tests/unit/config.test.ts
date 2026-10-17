@@ -46,6 +46,14 @@ describe('config', () => {
     });
   });
 
+  it('gives each loaded config its own default arrays', () => {
+    const home = tmp();
+    fs.writeFileSync(configPath(home), JSON.stringify(minimal));
+    const first = loadConfig(home);
+    first.sync.excludeFolders.push('LEAK');
+    expect(loadConfig(home).sync.excludeFolders).toEqual([]);
+  });
+
   it('round-trips and writes the file with mode 600', () => {
     const home = path.join(tmp(), 'nested');
     const config: AppConfig = {

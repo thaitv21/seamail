@@ -21,13 +21,13 @@ const ConfigSchema = z.object({
       excludeFolders: z.array(z.string()).default([]),
       staleAfterMinutes: z.number().positive().default(5),
     })
-    .default({ excludeFolders: [], staleAfterMinutes: 5 }),
+    .default(() => ({ excludeFolders: [], staleAfterMinutes: 5 })),
   drafts: z
     .object({
       folder: z.string().nullable().default(null),
       signature: z.string().nullable().default(null),
     })
-    .default({ folder: null, signature: null }),
+    .default(() => ({ folder: null, signature: null })),
 });
 
 export type AppConfig = z.infer<typeof ConfigSchema>;
