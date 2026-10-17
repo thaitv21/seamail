@@ -129,6 +129,30 @@ describe('buildNewMessage', () => {
     expect(m.msgKey).toMatch(/^[0-9a-f]{16}$/);
   });
 
+  it('runs the custom html converter on a single-part html source', async () => {
+    const html =
+      '<table><tr><td>Sản phẩm</td><td>Giá</td></tr><tr><td>A</td><td>100</td></tr></table>' +
+      '<img src="https://t.example/p.gif"><p><a href="https://evil.example/x">Xem link</a></p>';
+    const source = await new MailComposer({ from: 'a@example.test', to: 'me@example.test', subject: 'x', html }).compile().build();
+    const m = await buildNewMessage(raw, { kind: 'source', source }, ctx);
+    expect(m.bodyText).toMatch(/Sản phẩm\s+Giá/);
+    expect(m.bodyText).toContain('Xem link');
+    expect(m.bodyText).not.toContain('https://');
+  });
+
+  it('keeps the plain part of a multipart/alternative source', async () => {
+    const source = await new MailComposer({
+      from: 'a@example.test',
+      to: 'me@example.test',
+      subject: 'x',
+      text: 'Phần văn bản thuần.',
+      html: '<p>Phần <b>HTML</b></p>',
+    })
+      .compile()
+      .build();
+    expect((await buildNewMessage(raw, { kind: 'source', source }, ctx)).bodyText).toBe('Phần văn bản thuần.');
+  });
+
   it('converts a downloaded html part', async () => {
     const m = await buildNewMessage(raw, { kind: 'part', type: 'text/html', content: '<p>Xin <b>chào</b></p>' }, ctx);
     expect(m.bodyText).toBe('Xin chào');

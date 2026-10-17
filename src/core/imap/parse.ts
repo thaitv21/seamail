@@ -71,7 +71,8 @@ export async function buildNewMessage(
   let parseError = body.kind === 'failed';
   try {
     if (body.kind === 'source') {
-      const parsed = await simpleParser(body.source);
+      // Skip mailparser's own HTML-to-text so an HTML-only message goes through htmlToPlainText below.
+      const parsed = await simpleParser(body.source, { skipHtmlToText: true, skipImageLinks: true });
       bodyText = chooseBodyText(parsed.text, parsed.html || null);
     } else if (body.kind === 'part') {
       bodyText = body.type === 'text/plain' ? chooseBodyText(body.content, null) : chooseBodyText(null, body.content);
