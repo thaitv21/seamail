@@ -21,7 +21,24 @@ export interface FolderInfo {
   exists: number;
 }
 
-const NETWORK_CODES = new Set(['ECONNREFUSED', 'ENOTFOUND', 'ETIMEDOUT', 'ECONNRESET', 'EHOSTUNREACH', 'ENETUNREACH', 'EAI_AGAIN']);
+/** Node socket/DNS codes plus the timeout and closed-connection codes imapflow raises itself. */
+const NETWORK_CODES = new Set([
+  'ECONNREFUSED',
+  'ENOTFOUND',
+  'ETIMEDOUT',
+  'ECONNRESET',
+  'EHOSTUNREACH',
+  'ENETUNREACH',
+  'EAI_AGAIN',
+  'EPIPE',
+  'ECONNABORTED',
+  'CONNECT_TIMEOUT',
+  'GREETING_TIMEOUT',
+  'EConnectionClosed',
+  'ClosedAfterConnectText',
+  'ClosedAfterConnectTLS',
+  'NoConnection',
+]);
 
 export function mapImapError(err: unknown): Error {
   if (err instanceof MailError) return err;

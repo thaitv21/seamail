@@ -9,6 +9,18 @@ describe('mapImapError', () => {
   it('maps network errors', () => {
     expect(mapImapError(Object.assign(new Error('connect ECONNREFUSED'), { code: 'ECONNREFUSED' }))).toMatchObject({ code: 'IMAP_UNAVAILABLE' });
   });
+  it.each([
+    'CONNECT_TIMEOUT',
+    'GREETING_TIMEOUT',
+    'EConnectionClosed',
+    'ClosedAfterConnectText',
+    'ClosedAfterConnectTLS',
+    'NoConnection',
+    'EPIPE',
+    'ECONNABORTED',
+  ])('maps the %s code to IMAP_UNAVAILABLE', (code) => {
+    expect(mapImapError(Object.assign(new Error('x'), { code }))).toMatchObject({ code: 'IMAP_UNAVAILABLE' });
+  });
   it('passes other errors through', () => {
     const plain = new Error('x');
     const mail = new MailError('NOT_FOUND', 'y');

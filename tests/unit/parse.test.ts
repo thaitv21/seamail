@@ -19,6 +19,30 @@ const mixed: MessageStructureObject = {
   ],
 };
 
+const withForwardedMail: MessageStructureObject = {
+  type: 'multipart/mixed',
+  childNodes: [
+    { part: '1', type: 'text/html' },
+    {
+      part: '2',
+      type: 'message/rfc822',
+      disposition: 'attachment',
+      dispositionParameters: { filename: 'fwd.eml' },
+      size: 4321,
+      childNodes: [
+        {
+          type: 'multipart/mixed',
+          part: '2',
+          childNodes: [
+            { part: '2.1', type: 'text/plain' },
+            { part: '2.2', type: 'application/pdf', disposition: 'attachment', dispositionParameters: { filename: 'deep.pdf' }, size: 99 },
+          ],
+        },
+      ],
+    },
+  ],
+};
+
 describe('pickTextPart', () => {
   it('prefers text/plain', () => {
     expect(pickTextPart(mixed)).toEqual({ part: '1.1', type: 'text/plain' });
@@ -29,6 +53,9 @@ describe('pickTextPart', () => {
   it('uses part 1 for a single-part message', () => {
     expect(pickTextPart({ type: 'text/plain' })).toEqual({ part: '1', type: 'text/plain' });
   });
+  it('does not descend into an attached email', () => {
+    expect(pickTextPart(withForwardedMail)).toEqual({ part: '1', type: 'text/html' });
+  });
   it('ignores text attachments', () => {
     expect(pickTextPart({ type: 'multipart/mixed', childNodes: [{ part: '1', type: 'text/plain', disposition: 'attachment' }] })).toBeNull();
   });
@@ -37,6 +64,25 @@ describe('pickTextPart', () => {
 describe('attachmentsFromStructure', () => {
   it('lists real attachments but not inline images', () => {
     expect(attachmentsFromStructure(mixed)).toEqual([{ filename: 'q.pdf', mimeType: 'application/pdf', size: 1234 }]);
+  });
+  it('lists an attached email as one attachment without its contents', () => {
+    expect(attachmentsFromStructure(withForwardedMail)).toEqual([{ filename: 'fwd.eml', mimeType: 'message/rfc822', size: 4321 }]);
+  });
+  it('names an unnamed attached email message.eml', () => {
+    expect(attachmentsFromStructure({ type: 'message/rfc822', size: 7, childNodes: [{ type: 'text/plain', part: '1' }] })).toEqual([
+      { filename: 'message.eml', mimeType: 'message/rfc822', size: 7 },
+    ]);
+  });
+  it('normalizes attachment filenames to NFC', () => {
+    const nfd = 'Hợp đồng.pdf'.normalize('NFD');
+    expect(nfd).not.toBe('Hợp đồng.pdf'.normalize('NFC'));
+    const [attachment] = attachmentsFromStructure({ type: 'application/pdf', disposition: 'attachment', dispositionParameters: { filename: nfd }, size: 1 });
+    expect(attachment?.filename).toBe('Hợp đồng.pdf'.normalize('NFC'));
+  });
+  it('normalizes the filename of an attached email to NFC', () => {
+    const nfd = 'Chuyển tiếp.eml'.normalize('NFD');
+    const [attachment] = attachmentsFromStructure({ type: 'message/rfc822', parameters: { name: nfd }, size: 1 });
+    expect(attachment?.filename).toBe('Chuyển tiếp.eml'.normalize('NFC'));
   });
 });
 

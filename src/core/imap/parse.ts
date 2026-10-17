@@ -33,6 +33,8 @@ export function pickTextPart(node: MessageStructureObject | undefined): { part: 
 
 function findPart(node: MessageStructureObject | undefined, type: TextType): string | null {
   if (!node) return null;
+  // An attached email carries a whole message of its own; its text is not this message's body.
+  if (node.type === 'message/rfc822') return null;
   if (node.childNodes && node.childNodes.length > 0) {
     for (const child of node.childNodes) {
       const found = findPart(child, type);
@@ -46,8 +48,10 @@ function findPart(node: MessageStructureObject | undefined, type: TextType): str
 
 export function attachmentsFromStructure(node: MessageStructureObject | undefined): AttachmentMeta[] {
   if (!node) return [];
+  const filename = (node.dispositionParameters?.filename ?? node.parameters?.name)?.normalize('NFC');
+  // An attached email is a single attachment: its inner parts are not attachments of this message.
+  if (node.type === 'message/rfc822') return [{ filename: filename ?? 'message.eml', mimeType: node.type, size: node.size ?? 0 }];
   if (node.childNodes && node.childNodes.length > 0) return node.childNodes.flatMap(attachmentsFromStructure);
-  const filename = node.dispositionParameters?.filename ?? node.parameters?.name;
   const isAttachment = node.disposition === 'attachment' || (!node.disposition && !!filename && !node.type.startsWith('text/'));
   return isAttachment ? [{ filename: filename ?? 'unnamed', mimeType: node.type, size: node.size ?? 0 }] : [];
 }
