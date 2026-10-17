@@ -1,6 +1,6 @@
 import type { MessageStructureObject } from 'imapflow';
 import MailComposer from 'nodemailer/lib/mail-composer';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { attachmentsFromStructure, buildNewMessage, pickTextPart, type RawMessage } from '../../src/core/imap/parse.js';
 
 const mixed: MessageStructureObject = {
@@ -107,6 +107,10 @@ describe('buildNewMessage', () => {
   };
   const ctx = { folderPath: 'INBOX', uidValidity: 1 };
 
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it('combines envelope, references and the parsed source', async () => {
     const source = await new MailComposer({ from: 'a@example.test', to: 'me@example.test', subject: 'x', text: 'Đồng ý báo giá.' })
       .compile()
@@ -156,6 +160,13 @@ describe('buildNewMessage', () => {
   it('converts a downloaded html part', async () => {
     const m = await buildNewMessage(raw, { kind: 'part', type: 'text/html', content: '<p>Xin <b>chào</b></p>' }, ctx);
     expect(m.bodyText).toBe('Xin chào');
+  });
+
+  it('logs and flags a source that cannot be parsed', async () => {
+    const stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    const m = await buildNewMessage(raw, { kind: 'source', source: null as unknown as Buffer }, ctx);
+    expect(m).toMatchObject({ bodyText: '', parseError: true });
+    expect(stderr).toHaveBeenCalledWith(expect.stringContaining('Could not parse UID 9: '));
   });
 
   it('marks failed downloads as parse errors', async () => {

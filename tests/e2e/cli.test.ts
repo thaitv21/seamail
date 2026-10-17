@@ -47,6 +47,8 @@ describe('sea-mail CLI (built)', () => {
   });
 
   it('serves MCP over stdio with a clean stdout', async () => {
+    // The client reports every non-JSON-RPC line the server writes to stdout through onerror.
+    const errors: Error[] = [];
     const transport = new StdioClientTransport({
       command: process.execPath,
       args: [CLI, 'serve'],
@@ -54,13 +56,15 @@ describe('sea-mail CLI (built)', () => {
       stderr: 'ignore',
     });
     const client = new Client({ name: 'stdio-test', version: '0' });
+    client.onerror = (error) => errors.push(error);
     await client.connect(transport);
     try {
       const result = await client.callTool({ name: 'search_emails', arguments: { query: 'bao gia' } });
       const payload = JSON.parse((result.content as Array<{ text: string }>)[0]!.text);
       expect(payload.results[0].subject).toBe('Báo giá server');
+      expect(errors).toEqual([]);
     } finally {
       await client.close();
     }
-  });
+  }, 20_000);
 });

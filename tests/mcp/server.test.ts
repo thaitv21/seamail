@@ -1,6 +1,6 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { MailCore } from '../../src/core/mail-core.js';
 import { createMcpServer } from '../../src/mcp/server.js';
 import { createTestCore } from '../helpers/core.js';
@@ -19,6 +19,10 @@ function textOf(result: unknown): string {
 }
 
 describe('MCP server', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it('exposes six tools with accurate read-only hints', async () => {
     const client = await connect(createTestCore().core);
     const { tools } = await client.listTools();
@@ -62,5 +66,24 @@ describe('MCP server', () => {
     expect(textOf(missing)).toMatch(/^NOT_FOUND: /);
     const invalid = await client.callTool({ name: 'search_emails', arguments: { query: 'x', limit: 500 } });
     expect(invalid.isError).toBe(true);
+  });
+
+  it('logs unexpected errors to stderr and keeps the tool error terse', async () => {
+    const stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    const core = {
+      search: async () => {
+        throw new TypeError('boom');
+      },
+    } as unknown as MailCore;
+    const result = await (await connect(core)).callTool({ name: 'search_emails', arguments: { query: 'x' } });
+    expect(result.isError).toBe(true);
+    expect(textOf(result)).toBe('Unexpected error: boom');
+    expect(stderr).toHaveBeenCalledWith(expect.stringContaining('Unexpected tool error: TypeError: boom'));
+  });
+
+  it('does not log domain errors as unexpected', async () => {
+    const stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    await (await connect(createTestCore().core)).callTool({ name: 'get_email', arguments: { id: 'nope' } });
+    expect(stderr).not.toHaveBeenCalled();
   });
 });

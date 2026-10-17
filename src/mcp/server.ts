@@ -2,6 +2,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
 import { MailError } from '../core/errors.js';
+import { log } from '../core/log.js';
 import type { MailCore } from '../core/mail-core.js';
 import { SERVER_INSTRUCTIONS } from './instructions.js';
 
@@ -109,6 +110,7 @@ async function respond(fn: () => Promise<unknown>): Promise<CallToolResult> {
   try {
     return { content: [{ type: 'text', text: JSON.stringify(await fn(), null, 2) }] };
   } catch (err) {
+    if (!(err instanceof MailError)) log(`Unexpected tool error: ${err instanceof Error ? (err.stack ?? err.message) : String(err)}`);
     const text =
       err instanceof MailError
         ? `${err.code}: ${err.message}`

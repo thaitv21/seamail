@@ -1,5 +1,6 @@
 import type { MessageAddressObject, MessageEnvelopeObject, MessageStructureObject } from 'imapflow';
 import { simpleParser } from 'mailparser';
+import { log } from '../log.js';
 import { chooseBodyText } from '../text/body.js';
 import { deriveThreadId, makeMsgKey, normalizeMessageId, parseMessageIds } from '../text/thread.js';
 import type { Address, AttachmentMeta, NewMessage } from '../types.js';
@@ -77,7 +78,8 @@ export async function buildNewMessage(
     } else if (body.kind === 'part') {
       bodyText = body.type === 'text/plain' ? chooseBodyText(body.content, null) : chooseBodyText(null, body.content);
     }
-  } catch {
+  } catch (err) {
+    log(`Could not parse UID ${raw.uid}: ${err instanceof Error ? err.message : String(err)}`);
     parseError = true;
   }
 

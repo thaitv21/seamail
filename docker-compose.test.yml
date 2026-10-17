@@ -5,4 +5,4 @@ services:
       # Auth disabled: logging in as any new address creates an empty mailbox for it.
       GREENMAIL_OPTS: "-Dgreenmail.setup.test.all -Dgreenmail.hostname=0.0.0.0 -Dgreenmail.auth.disabled"
     ports:
-      - "${GREENMAIL_IMAP_PORT:-3143}:3143"
+      - "127.0.0.1:${GREENMAIL_IMAP_PORT:-3143}:3143"
