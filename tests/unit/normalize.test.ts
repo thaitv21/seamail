@@ -21,6 +21,10 @@ describe('parseQuery', () => {
     expect(parseQuery('Báo giá')).toEqual({ fts: '"bao" "gia"', terms: ['bao', 'gia'] });
   });
 
+  it('treats a decomposed (NFD) query the same as its NFC form', () => {
+    expect(parseQuery('Báo giá'.normalize('NFD'))).toEqual({ fts: '"bao" "gia"', terms: ['bao', 'gia'] });
+  });
+
   it('keeps phrases and OR', () => {
     expect(parseQuery('"đơn hàng" OR invoice')).toEqual({
       fts: '"don hang" OR "invoice"',
