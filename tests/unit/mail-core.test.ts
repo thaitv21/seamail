@@ -98,6 +98,40 @@ describe('MailCore reads', () => {
   });
 });
 
+describe('MailCore input validation', () => {
+  it.each(['???', '-', '@'])('rejects a query with nothing searchable: %s', async (query) => {
+    await expect(createTestCore().core.search({ query })).rejects.toMatchObject({ code: 'INVALID_INPUT' });
+  });
+
+  it('lists by date when the query is missing or blank', async () => {
+    const { core } = createTestCore();
+    expect((await core.search({})).total).toBe(2);
+    expect((await core.search({ query: '   ' })).total).toBe(2);
+  });
+
+  it.each(['2026-02-30', '2026-13-01', '1', 'last tuesday 5', '2026-08-01T25:00:00Z'])(
+    'rejects the malformed date %s before syncing',
+    async (value) => {
+      const { core, sync } = createTestCore({ lastSyncedAt: STALE });
+      await expect(core.search({ after: value })).rejects.toMatchObject({ code: 'INVALID_INPUT' });
+      await expect(core.search({ before: value })).rejects.toMatchObject({ code: 'INVALID_INPUT' });
+      await expect(core.listRecent({ since: value })).rejects.toMatchObject({ code: 'INVALID_INPUT' });
+      expect(sync).not.toHaveBeenCalled();
+    },
+  );
+
+  it('accepts ISO-8601 dates, with or without a time and offset', async () => {
+    const { core } = createTestCore();
+    expect((await core.search({ after: '2026-08-01' })).total).toBe(2);
+    expect((await core.search({ after: '2026-08-01T09:30:00Z' })).total).toBe(2);
+    expect((await core.search({ after: '2026-08-01T09:30:00+07:00' })).total).toBe(2);
+    expect((await core.search({ after: '2026-08-01T09:30' })).total).toBe(2);
+    expect((await core.search({ after: '2026-08-01T09:30:00.250Z' })).total).toBe(2);
+    // 2026-10-17T00:00+07:00 is 2026-10-16T17:00Z: only the reply (k2) is on or after it.
+    expect((await core.search({ after: '2026-10-17T00:00:00+07:00' })).results.map((r) => r.id)).toEqual(['k2']);
+  });
+});
+
 describe('MailCore.createDraft', () => {
   it('appends a reply to the detected Drafts folder', async () => {
     const { core, appended } = createTestCore();

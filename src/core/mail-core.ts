@@ -3,7 +3,7 @@ import { buildDraft } from './draft/compose.js';
 import { MailError } from './errors.js';
 import { log } from './log.js';
 import type { Repo } from './store/repo.js';
-import { parseQuery } from './text/normalize.js';
+import { parseQuery, type ParsedQuery } from './text/normalize.js';
 import { stripQuotes } from './text/quotes.js';
 import { makeSnippet } from './text/snippet.js';
 import type {
@@ -42,8 +42,12 @@ export class MailCore {
   }
 
   async search(p: SearchParams): Promise<{ results: EmailSummary[]; total: number } & Freshness> {
-    const freshness = await this.ensureFresh();
-    const parsed = p.query ? parseQuery(p.query) : null;
+    // Validate the input first, so a bad request fails fast instead of triggering a sync.
+    let parsed: ParsedQuery | null = null;
+    if (p.query !== undefined && p.query.trim() !== '') {
+      parsed = parseQuery(p.query);
+      if (!parsed) throw new MailError('INVALID_INPUT', `Nothing searchable in query: ${p.query}`);
+    }
     const base = {
       from: p.from,
       to: p.to,
@@ -53,6 +57,7 @@ export class MailCore {
       hasAttachment: p.hasAttachment,
       limit: clamp(p.limit ?? 20, 1, 50),
     };
+    const freshness = await this.ensureFresh();
     let found: { rows: StoredMessage[]; total: number };
     try {
       found = this.deps.repo.search({ ...base, fts: parsed?.fts ?? null });
@@ -94,8 +99,9 @@ export class MailCore {
   }
 
   async listRecent(p: ListRecentParams): Promise<{ results: EmailSummary[] } & Freshness> {
+    const sinceBound = toIsoBound(p.since, 'since');
     const freshness = await this.ensureFresh();
-    const since = toIsoBound(p.since, 'since') ?? new Date(this.now().getTime() - 24 * 3600_000).toISOString();
+    const since = sinceBound ?? new Date(this.now().getTime() - 24 * 3600_000).toISOString();
     const rows = this.deps.repo.listRecent({
       folder: p.folder ?? 'INBOX',
       since,
@@ -177,11 +183,26 @@ function toFull(m: StoredMessage, body: string, maxChars: number): EmailFull {
   };
 }
 
+/** YYYY-MM-DD, optionally followed by THH:MM[:SS[.fff]] and an optional Z or ±HH:MM offset. */
+const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?(Z|[+-](\d{2}):(\d{2}))?)?$/;
+
+/** Accepts only well-formed ISO-8601 dates (new Date() alone would roll 2026-02-30 over to March 2). */
 function toIsoBound(value: string | undefined, name: string): string | undefined {
   if (value === undefined) return undefined;
+  const fail = () => new MailError('INVALID_INPUT', `${name} must be an ISO date such as 2026-08-01`);
+  const m = ISO_DATE.exec(value);
+  if (!m) throw fail();
+  const [year, month, day, hour, minute, second, offsetHour, offsetMinute] = [1, 2, 3, 4, 5, 6, 8, 9].map((i) => Number(m[i] ?? 0));
+  if (month < 1 || month > 12 || day < 1 || day > daysInMonth(year, month)) throw fail();
+  if (hour > 23 || minute > 59 || second > 59 || offsetHour > 23 || offsetMinute > 59) throw fail();
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) throw new MailError('INVALID_INPUT', `${name} must be an ISO date such as 2026-08-01`);
+  if (Number.isNaN(date.getTime())) throw fail();
   return date.toISOString();
+}
+
+function daysInMonth(year: number, month: number): number {
+  if (month === 2) return year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0) ? 29 : 28;
+  return [4, 6, 9, 11].includes(month) ? 30 : 31;
 }
 
 function clamp(n: number, min: number, max: number): number {
