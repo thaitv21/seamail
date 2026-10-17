@@ -10,6 +10,9 @@ export async function runSync(home: string, passwords: PasswordStore): Promise<v
     process.stderr.write(
       `Synced: ${r.newMessages} new, ${r.updatedFlags} flag changes, ${r.deleted} deleted in ${(r.durationMs / 1000).toFixed(1)} s\n`,
     );
+    if (r.failedFolders.length > 0) {
+      process.stderr.write(`Skipped ${r.failedFolders.length} folder(s) that could not be synced: ${r.failedFolders.join(', ')}\n`);
+    }
   } finally {
     ctx.close();
   }

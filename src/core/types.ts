@@ -107,6 +107,8 @@ export interface SyncResult {
   deleted: number;
   durationMs: number;
   lastSyncedAt: string;
+  /** Folders skipped because they could not be synced (the rest of the mailbox was still synced). */
+  failedFolders: string[];
 }
 
 export interface Freshness {

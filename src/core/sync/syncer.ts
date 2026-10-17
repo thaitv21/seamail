@@ -1,4 +1,5 @@
-import type { ImapSession, RemoteFolder } from '../imap/client.js';
+import { MailError } from '../errors.js';
+import { mapImapError, type ImapSession, type RemoteFolder } from '../imap/client.js';
 import { buildNewMessage, pickTextPart, type BodySource, type RawMessage } from '../imap/parse.js';
 import { log } from '../log.js';
 import type { Repo } from '../store/repo.js';
@@ -41,6 +42,7 @@ export class Syncer {
   private async run(): Promise<SyncResult> {
     const started = Date.now();
     const totals: FolderTotals = { newMessages: 0, updatedFlags: 0, deleted: 0 };
+    const failedFolders: string[] = [];
     const session = await this.deps.openSession();
     try {
       const remote = (await session.listFolders()).filter((f) => this.isIncluded(f));
@@ -49,17 +51,25 @@ export class Syncer {
         if (!remotePaths.has(local.path)) this.deps.repo.removeFolder(local.id);
       }
       for (const folder of remote) {
-        const r = await this.syncFolder(session, folder);
-        totals.newMessages += r.newMessages;
-        totals.updatedFlags += r.updatedFlags;
-        totals.deleted += r.deleted;
+        try {
+          const r = await this.syncFolder(session, folder);
+          totals.newMessages += r.newMessages;
+          totals.updatedFlags += r.updatedFlags;
+          totals.deleted += r.deleted;
+        } catch (err) {
+          const mapped = mapImapError(err);
+          // A dead connection or bad credentials affect every folder: abort the run. Anything else is this folder's problem.
+          if (mapped instanceof MailError && (mapped.code === 'IMAP_UNAVAILABLE' || mapped.code === 'AUTH_FAILED')) throw mapped;
+          log(`Skipping folder ${folder.path}: ${mapped.message}`);
+          failedFolders.push(folder.path);
+        }
       }
     } finally {
       await session.close();
     }
     const lastSyncedAt = this.now().toISOString();
     this.deps.repo.setMeta('last_synced_at', lastSyncedAt);
-    return { ...totals, durationMs: Date.now() - started, lastSyncedAt };
+    return { ...totals, durationMs: Date.now() - started, lastSyncedAt, failedFolders };
   }
 
   private isIncluded(f: RemoteFolder): boolean {

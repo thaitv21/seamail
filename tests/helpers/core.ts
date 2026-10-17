@@ -46,7 +46,7 @@ export function createTestCore(opts: TestCoreOptions = {}) {
 
   const sync = vi.fn(
     opts.sync ??
-      (async (): Promise<SyncResult> => ({ newMessages: 0, updatedFlags: 0, deleted: 0, durationMs: 1, lastSyncedAt: TEST_NOW.toISOString() })),
+      (async (): Promise<SyncResult> => ({ newMessages: 0, updatedFlags: 0, deleted: 0, durationMs: 1, lastSyncedAt: TEST_NOW.toISOString(), failedFolders: [] })),
   );
   const appended: Array<{ path: string; raw: Buffer; flags: string[] }> = [];
   const sink: DraftSink = {
