@@ -34,6 +34,7 @@ Settings live in `~/.sea-mail/config.json`. Optional fields you can edit by hand
 
 | Field | Default | Meaning |
 |---|---|---|
+| `drafts.folder` | `null` (auto-detected) | Folder where drafts are saved. Set it (e.g. `"Drafts"`) if your Drafts folder is excluded from sync or isn't detected. |
 | `drafts.signature` | `null` | Text appended to every draft before the quoted original |
 | `sync.excludeFolders` | `[]` | Folder paths not to index (Trash and Junk are always skipped) |
 | `sync.staleAfterMinutes` | `5` | Refresh from the server before answering if the index is older than this |
@@ -92,6 +93,7 @@ In `claude_desktop_config.json`:
 | `NOT_CONFIGURED` | Run `sea-mail setup` |
 | `AUTH_FAILED` | Password changed or missing; run `sea-mail setup` again |
 | `EMPTY_INDEX` | Run `sea-mail sync` |
+| `NO_DRAFTS_FOLDER` | Set `drafts.folder` in `~/.sea-mail/config.json` to your Drafts folder path (see `sea-mail setup`'s folder list), and make sure it isn't in `sync.excludeFolders`. |
 | Results marked `"stale": true` | The server was unreachable; answers come from the last sync |
 
 `sea-mail search "bao gia" --after 2026-08-01` checks the index without an AI client. Server logs go to stderr.
