@@ -6,6 +6,7 @@ export function htmlToPlainText(html: string): string {
     selectors: [
       { selector: 'img', format: 'skip' },
       { selector: 'a', options: { ignoreHref: true } },
+      { selector: 'table', format: 'dataTable', options: { uppercaseHeaderCells: false } },
     ],
   });
 }

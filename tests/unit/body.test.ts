@@ -14,4 +14,15 @@ describe('chooseBodyText', () => {
     expect(chooseBodyText('Báo', null)).toBe('Báo');
     expect(chooseBodyText(null, null)).toBe('');
   });
+
+  it('keeps the cells of a one-column layout table on separate lines', () => {
+    expect(chooseBodyText(null, '<table><tr><td>Hello</td></tr><tr><td>World</td></tr></table>')).toBe('Hello\nWorld');
+  });
+
+  it('keeps adjacent table cells apart and does not uppercase header cells', () => {
+    const text = chooseBodyText(null, '<table><tr><th>Sản phẩm</th><th>Giá</th></tr><tr><td>A</td><td>100</td></tr></table>');
+    expect(text).toMatch(/Sản phẩm\s+Giá/);
+    expect(text).toMatch(/A\s+100/);
+    expect(text).toContain('Sản phẩm');
+  });
 });
