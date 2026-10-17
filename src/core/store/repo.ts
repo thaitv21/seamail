@@ -193,15 +193,19 @@ export class Repo {
     }
     const filter = `FROM messages m ${joins.join(' ')}${where.length > 0 ? ` WHERE ${where.join(' AND ')}` : ''}`;
     const score = p.fts ? 'bm25(messages_fts, 5.0, 2.0, 2.0, 1.0)' : '0';
-    const order = p.fts ? 'score ASC, date DESC' : 'date DESC';
+    const order = p.fts ? 'score ASC, date DESC, id ASC' : 'date DESC, id ASC';
 
     const total = (this.db.prepare(`SELECT COUNT(DISTINCT m.msg_key) AS n ${filter}`).get(...args) as { n: number }).n;
     // bm25() cannot share a SELECT with a window function, so rank in a materialized CTE first.
+    // Only ids/keys are materialized; full rows are fetched for the final page alone.
     const rows = this.db
       .prepare(
-        `WITH ranked AS MATERIALIZED (SELECT m.*, f.path AS folder_path, ${score} AS score ${filter}),
-              deduped AS (SELECT ranked.*, ROW_NUMBER() OVER (PARTITION BY msg_key ORDER BY id) AS rn FROM ranked)
-         SELECT * FROM deduped WHERE rn = 1 ORDER BY ${order} LIMIT ?`,
+        `WITH ranked AS MATERIALIZED (SELECT m.id, m.msg_key, m.date, ${score} AS score ${filter}),
+              deduped AS (SELECT ranked.*, ROW_NUMBER() OVER (PARTITION BY msg_key ORDER BY id) AS rn FROM ranked),
+              top AS (SELECT id, score, date FROM deduped WHERE rn = 1 ORDER BY ${order} LIMIT ?)
+         SELECT m.*, f.path AS folder_path FROM top
+         JOIN messages m ON m.id = top.id JOIN folders f ON f.id = m.folder_id
+         ORDER BY ${order.split(', ').map((part) => `top.${part}`).join(', ')}`,
       )
       .all(...args, p.limit) as MessageDbRow[];
     return { rows: rows.map(toStored), total };

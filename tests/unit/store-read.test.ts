@@ -60,6 +60,14 @@ describe('Repo.search', () => {
   it('treats LIKE wildcards in filters literally', () => {
     expect(seeded().search({ fts: null, from: '%', limit: 10 }).total).toBe(0);
   });
+
+  it('keeps the first stored copy of a duplicated message', () => {
+    const repo = seeded();
+    const unfiltered = repo.search({ fts: null, limit: 10 }).rows.find((m) => m.msgKey === 'quote');
+    expect(unfiltered?.folderPath).toBe('INBOX');
+    const ranked = repo.search({ fts: fts('bao gia'), limit: 10 }).rows.find((m) => m.msgKey === 'quote');
+    expect(ranked?.folderPath).toBe('INBOX');
+  });
 });
 
 describe('Repo reads', () => {
