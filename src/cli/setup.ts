@@ -48,14 +48,16 @@ export async function runSetup(home: string, passwords: PasswordStore): Promise<
       choices: folders.map((f) => ({ name: f.path, value: f.path })),
     }));
 
+  // Keep a folder set by hand; otherwise persist the detected or selected one.
+  const savedDraftsFolder = existing?.drafts.folder ?? draftsFolder;
   const config: AppConfig = {
     imap: { host, port, secure, user },
     identity: { name, email },
     sync: existing?.sync ?? { excludeFolders: [], staleAfterMinutes: 5 },
-    drafts: { folder: detected ? null : draftsFolder, signature: existing?.drafts.signature ?? null },
+    drafts: { folder: savedDraftsFolder, signature: existing?.drafts.signature ?? null },
   };
   passwords.set(keychainAccount(config), pass);
   saveConfig(home, config);
-  process.stderr.write(`Saved ${configPath(home)} (drafts folder: ${draftsFolder}). Running the first sync…\n`);
+  process.stderr.write(`Saved ${configPath(home)} (drafts folder: ${savedDraftsFolder}). Running the first sync…\n`);
   await runSync(home, passwords);
 }

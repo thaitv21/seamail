@@ -114,7 +114,12 @@ export class MailCore {
   async createDraft(input: DraftInput): Promise<DraftResult> {
     const { repo, config } = this.deps;
     const draftFolder = config.drafts.folder ?? repo.listFolders().find((f) => f.specialUse === '\\Drafts')?.path;
-    if (!draftFolder) throw new MailError('NO_DRAFTS_FOLDER', 'Drafts folder not configured — run `sea-mail setup`');
+    if (!draftFolder) {
+      throw new MailError(
+        'NO_DRAFTS_FOLDER',
+        'Drafts folder not found — set "drafts.folder" in ~/.sea-mail/config.json to your Drafts folder path (or re-run `sea-mail setup`)',
+      );
+    }
     let original: StoredMessage | null = null;
     if (input.replyToId) {
       original = repo.getByKey(input.replyToId) ?? null;

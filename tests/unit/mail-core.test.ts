@@ -151,6 +151,7 @@ describe('MailCore.createDraft', () => {
   it('fails clearly without a Drafts folder or with an unknown reply target', async () => {
     await expect(createTestCore({ withDraftsFolder: false }).core.createDraft({ to: ['x@example.test'], subject: 'Hi', body: 'x' })).rejects.toMatchObject({
       code: 'NO_DRAFTS_FOLDER',
+      message: expect.stringContaining('set "drafts.folder" in ~/.sea-mail/config.json'),
     });
     await expect(createTestCore().core.createDraft({ body: 'x', replyToId: 'nope' })).rejects.toMatchObject({ code: 'NOT_FOUND' });
   });
