@@ -308,5 +308,6 @@ function toStored(r: MessageDbRow): StoredMessage {
 }
 
 function likeContains(value: string): string {
-  return `%${normalizeForSearch(value).replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+  // normalizeForSearch needs NFC input, the same as parseQuery: decomposed accents would survive as stray marks.
+  return `%${normalizeForSearch(value.normalize('NFC')).replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
 }

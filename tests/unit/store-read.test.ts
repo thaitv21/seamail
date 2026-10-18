@@ -57,6 +57,14 @@ describe('Repo.search', () => {
     expect(keys(repo.search({ fts: null, hasAttachment: true, limit: 10 }))).toEqual(['quote']);
   });
 
+  it('matches decomposed (NFD) sender and recipient filters', () => {
+    const repo = seeded();
+    const nfd = (s: string) => s.normalize('NFD');
+    expect(nfd('Nguyễn')).not.toBe('Nguyễn');
+    expect(keys(repo.search({ fts: null, from: nfd('Nguyễn Văn'), limit: 10 }))).toEqual(['quote']);
+    expect(keys(repo.search({ fts: null, to: nfd('Kế toán'), limit: 10 }))).toEqual(['body-only']);
+  });
+
   it('treats LIKE wildcards in filters literally', () => {
     expect(seeded().search({ fts: null, from: '%', limit: 10 }).total).toBe(0);
   });
