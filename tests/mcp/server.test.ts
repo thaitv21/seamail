@@ -30,6 +30,16 @@ describe('MCP server', () => {
     for (const tool of tools) expect(tool.annotations?.readOnlyHint).toBe(tool.name !== 'create_draft' && tool.name !== 'sync_mailbox');
   });
 
+  it('describes every tool parameter', async () => {
+    const { tools } = await (await connect(createTestCore().core)).listTools();
+    const undescribed = tools.flatMap((tool) =>
+      Object.entries((tool.inputSchema.properties ?? {}) as Record<string, { description?: string }>)
+        .filter(([, schema]) => !schema.description?.trim())
+        .map(([name]) => `${tool.name}.${name}`),
+    );
+    expect(undescribed).toEqual([]);
+  });
+
   it('sends safety instructions', async () => {
     const client = await connect(createTestCore().core);
     expect(client.getInstructions()).toContain('untrusted');
@@ -50,6 +60,15 @@ describe('MCP server', () => {
     const result = JSON.parse(textOf(await client.callTool({ name: 'create_draft', arguments: { body: 'Cảm ơn.', replyToId: 'k1' } })));
     expect(result.draftFolder).toBe('Drafts');
     expect(appended).toHaveLength(1);
+  });
+
+  it('rejects a draft whose body is only whitespace', async () => {
+    const { core, appended } = createTestCore();
+    const client = await connect(core);
+    const result = await client.callTool({ name: 'create_draft', arguments: { body: ' \n\t ', replyToId: 'k1' } });
+    expect(result.isError).toBe(true);
+    expect(textOf(result)).toMatch(/body/);
+    expect(appended).toHaveLength(0);
   });
 
   it('runs a forced sync', async () => {

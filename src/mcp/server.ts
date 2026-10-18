@@ -24,7 +24,7 @@ export function createMcpServer(core: MailCore, version: string): McpServer {
         folder: z.string().optional().describe('Folder path, e.g. INBOX'),
         after: z.string().optional().describe('ISO date/time, inclusive'),
         before: z.string().optional().describe('ISO date/time, exclusive'),
-        hasAttachment: z.boolean().optional(),
+        hasAttachment: z.boolean().optional().describe('true: only emails with attachments; false: only emails without'),
         limit: z.number().int().min(1).max(50).optional().describe('Default 20'),
       },
       annotations: READ_ONLY,
@@ -51,7 +51,7 @@ export function createMcpServer(core: MailCore, version: string): McpServer {
       description: 'All emails of a conversation, oldest first, with repeated quoted history removed.',
       inputSchema: {
         id: z.string().optional().describe('Id of any email in the thread'),
-        threadId: z.string().optional(),
+        threadId: z.string().optional().describe('The threadId from search_emails, get_email or list_recent; alternative to id'),
         includeQuoted: z.boolean().optional().describe('Keep quoted history (default false)'),
         maxCharsPerMessage: z.number().int().min(200).max(20_000).optional().describe('Default 4000'),
       },
@@ -67,7 +67,7 @@ export function createMcpServer(core: MailCore, version: string): McpServer {
       inputSchema: {
         folder: z.string().optional().describe('Default INBOX'),
         since: z.string().optional().describe('ISO date/time; default 24 hours ago'),
-        unreadOnly: z.boolean().optional(),
+        unreadOnly: z.boolean().optional().describe('Only unread emails (default false)'),
         limit: z.number().int().min(1).max(200).optional().describe('Default 50'),
       },
       annotations: READ_ONLY,
@@ -92,9 +92,9 @@ export function createMcpServer(core: MailCore, version: string): McpServer {
         'For a reply pass replyToId; recipients, "Re:" subject, threading headers, signature and quote are filled in.',
       inputSchema: {
         to: z.array(z.string()).optional().describe('Recipient addresses; when replying, defaults to the original sender (or its recipients if the user sent it)'),
-        cc: z.array(z.string()).optional(),
+        cc: z.array(z.string()).optional().describe('Cc addresses; replyAll adds the original To and Cc to these'),
         subject: z.string().optional().describe('Defaults to "Re: <original subject>" when replying'),
-        body: z.string().min(1).describe('Plain text; separate paragraphs with a blank line'),
+        body: z.string().regex(/\S/, 'body must not be blank').describe('Plain text; separate paragraphs with a blank line'),
         replyToId: z.string().optional().describe('id of the email being answered'),
         replyAll: z.boolean().optional().describe('Also include the original To and Cc'),
       },
