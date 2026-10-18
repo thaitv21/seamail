@@ -1,7 +1,10 @@
 #!/usr/bin/env node
 import { createRequire } from 'node:module';
+import os from 'node:os';
+import { fileURLToPath } from 'node:url';
 import { homeDir, keychainPasswordStore } from '../core/config.js';
 import { MailError } from '../core/errors.js';
+import { runConnect } from './connect.js';
 import { runSearch } from './search.js';
 import { runServe } from './serve.js';
 import { runSetup } from './setup.js';
@@ -16,6 +19,9 @@ Commands:
   sync             Fetch new mail into the local index
   search <query>   Search the local index (--from --to --folder --after --before --limit)
   serve            Run the MCP server on stdio (used by Codex / Claude)
+  connect --client codex|claude
+                   Register sea-mail as an MCP server in Codex or Claude Desktop
+                   (--remove unregisters it)
 `;
 
 async function main(argv: string[]): Promise<void> {
@@ -30,6 +36,14 @@ async function main(argv: string[]): Promise<void> {
       return runSearch(home, keychainPasswordStore, rest);
     case 'serve':
       return runServe(home, keychainPasswordStore, version);
+    case 'connect':
+      return runConnect(rest, {
+        server: { command: process.execPath, args: [fileURLToPath(import.meta.url), 'serve'] },
+        platform: process.platform,
+        env: process.env,
+        homedir: os.homedir(),
+        write: (text) => process.stdout.write(text),
+      });
     default:
       process.stderr.write(USAGE);
       process.exitCode = command === undefined || command === '--help' || command === '-h' ? 0 : 1;

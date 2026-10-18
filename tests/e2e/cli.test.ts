@@ -5,6 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+import { parse as parseToml } from 'smol-toml';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { dbPath, saveConfig } from '../../src/core/config.js';
 import { openDb } from '../../src/core/store/db.js';
@@ -66,6 +67,17 @@ describe('sea-mail CLI (built)', () => {
     expect(plain.stderr).toContain("Unknown option '--bogus'");
     expect(plain.stderr).not.toMatch(STACK_FRAME);
     expect(run(['search', '--bogus'], { DEBUG: '1' }).stderr).toMatch(STACK_FRAME);
+  });
+
+  it('registers this build with Codex, by absolute paths to node and the CLI', () => {
+    const codexHome = path.join(home, 'codex');
+    const r = run(['connect', '--client', 'codex'], { CODEX_HOME: codexHome });
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain('Added sea-mail');
+    const parsed = parseToml(fs.readFileSync(path.join(codexHome, 'config.toml'), 'utf8')) as {
+      mcp_servers: Record<string, unknown>;
+    };
+    expect(parsed.mcp_servers['sea-mail']).toEqual({ command: process.execPath, args: [CLI, 'serve'] });
   });
 
   it('serves MCP over stdio with a clean stdout', async () => {
