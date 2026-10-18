@@ -43,6 +43,7 @@ export class Syncer {
     const started = Date.now();
     const totals: FolderTotals = { newMessages: 0, updatedFlags: 0, deleted: 0 };
     const failedFolders: string[] = [];
+    let firstFailure = '';
     const session = await this.deps.openSession();
     try {
       const remote = (await session.listFolders()).filter((f) => this.isIncluded(f));
@@ -59,10 +60,16 @@ export class Syncer {
         } catch (err) {
           const mapped = mapImapError(err);
           // A dead connection or bad credentials affect every folder: abort the run. Anything else is this folder's problem.
-          if (mapped instanceof MailError && (mapped.code === 'IMAP_UNAVAILABLE' || mapped.code === 'AUTH_FAILED')) throw mapped;
+          const fatal = fatalError(mapped, session);
+          if (fatal) throw fatal;
           log(`Skipping folder ${folder.path}: ${mapped.message}`);
           failedFolders.push(folder.path);
+          firstFailure ||= mapped.message;
         }
+      }
+      // Nothing was synced, so the index is no fresher than before: do not mark it as synced.
+      if (remote.length > 0 && failedFolders.length === remote.length) {
+        throw new MailError('IMAP_UNAVAILABLE', `No folder could be synced (${remote.length} tried); the first error was: ${firstFailure}`);
       }
     } finally {
       await session.close();
@@ -132,9 +139,18 @@ export class Syncer {
     } catch (err) {
       const mapped = mapImapError(err);
       // A dropped connection is not the message's fault: abort so the batch is not committed and the next sync retries it.
-      if (mapped instanceof MailError && mapped.code === 'IMAP_UNAVAILABLE') throw mapped;
+      const fatal = fatalError(mapped, session);
+      if (fatal) throw fatal;
       log(`Could not download the body of UID ${meta.uid}: ${mapped.message}`);
       return { kind: 'failed' };
     }
   }
+}
+
+/** The error to abort the whole run with, or null when only this folder or message is affected. */
+function fatalError(err: Error, session: ImapSession): MailError | null {
+  if (err instanceof MailError && (err.code === 'IMAP_UNAVAILABLE' || err.code === 'AUTH_FAILED')) return err;
+  // imapflow does not give every failure that closes the connection a known code; the session state is the ground truth.
+  if (!session.usable) return new MailError('IMAP_UNAVAILABLE', `IMAP connection lost: ${err.message}`);
+  return null;
 }

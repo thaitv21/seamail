@@ -21,7 +21,8 @@ export interface FolderInfo {
   exists: number;
 }
 
-/** Node socket/DNS codes plus the timeout and closed-connection codes imapflow raises itself. */
+/** Node socket/DNS codes plus the timeout and closed-connection codes imapflow raises itself (it closes the connection
+ * after ResponseProcessingFailed, and raises StateLogout for a command sent after logout). */
 const NETWORK_CODES = new Set([
   'ECONNREFUSED',
   'ENOTFOUND',
@@ -38,6 +39,8 @@ const NETWORK_CODES = new Set([
   'ClosedAfterConnectText',
   'ClosedAfterConnectTLS',
   'NoConnection',
+  'StateLogout',
+  'ResponseProcessingFailed',
 ]);
 
 export function mapImapError(err: unknown): Error {
@@ -59,6 +62,11 @@ function cleanFlags(flags: Set<string> | undefined): string[] {
  */
 export class ImapSession {
   private constructor(private readonly client: ImapFlow) {}
+
+  /** False once the connection is closed or broken: no later command on this session can succeed. */
+  get usable(): boolean {
+    return this.client.usable;
+  }
 
   static async open(s: ImapSettings): Promise<ImapSession> {
     const client = new ImapFlow({

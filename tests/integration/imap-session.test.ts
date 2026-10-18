@@ -52,6 +52,12 @@ describe('ImapSession against GreenMail', () => {
     expect((await serverFlags(raw, 'INBOX')).get(uid)).not.toContain('\\Seen');
   });
 
+  it('reports whether the connection is still usable', async () => {
+    expect(session.usable).toBe(true);
+    await session.close();
+    expect(session.usable).toBe(false);
+  });
+
   it('appends a draft with flags', async () => {
     await session.append('Drafts', Buffer.from('Subject: d\r\nMessage-ID: <d@x>\r\n\r\nbody\r\n'), ['\\Draft', '\\Seen']);
     const [flags] = [...(await serverFlags(raw, 'Drafts')).values()];

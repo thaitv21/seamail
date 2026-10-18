@@ -18,6 +18,8 @@ describe('mapImapError', () => {
     'NoConnection',
     'EPIPE',
     'ECONNABORTED',
+    'StateLogout',
+    'ResponseProcessingFailed',
   ])('maps the %s code to IMAP_UNAVAILABLE', (code) => {
     expect(mapImapError(Object.assign(new Error('x'), { code }))).toMatchObject({ code: 'IMAP_UNAVAILABLE' });
   });
