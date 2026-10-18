@@ -15,7 +15,7 @@ const mixed: MessageStructureObject = {
       ],
     },
     { part: '2', type: 'application/pdf', disposition: 'attachment', dispositionParameters: { filename: 'q.pdf' }, size: 1234 },
-    { part: '3', type: 'image/png', disposition: 'inline', parameters: { name: 'logo.png' }, size: 50 },
+    { part: '3', type: 'image/png', disposition: 'inline', parameters: { name: 'logo.png' }, id: '<logo@example.test>', size: 50 },
   ],
 };
 
@@ -62,8 +62,21 @@ describe('pickTextPart', () => {
 });
 
 describe('attachmentsFromStructure', () => {
-  it('lists real attachments but not inline images', () => {
+  it('lists real attachments but not inline images with a Content-ID', () => {
     expect(attachmentsFromStructure(mixed)).toEqual([{ filename: 'q.pdf', mimeType: 'application/pdf', size: 1234 }]);
+  });
+  it.each<[string, boolean, MessageStructureObject]>([
+    ['an inline PDF with a filename (Apple Mail, iOS)', true, { type: 'application/pdf', disposition: 'inline', dispositionParameters: { filename: 'hd.pdf' } }],
+    ['an inline spreadsheet named only by Content-Type', true, { type: 'application/vnd.ms-excel', disposition: 'inline', parameters: { name: 'bg.xls' } }],
+    ['an inline image without a Content-ID', true, { type: 'image/jpeg', disposition: 'inline', dispositionParameters: { filename: 'IMG_1.jpg' } }],
+    ['an inline image with a Content-ID (signature logo)', false, { type: 'image/png', disposition: 'inline', parameters: { name: 'logo.png' }, id: '<l@x>' }],
+    ['a related image with a Content-ID and no disposition', false, { type: 'image/png', parameters: { name: 'image001.png' }, id: '<i@x>' }],
+    ['an image attachment that also has a Content-ID', true, { type: 'image/png', disposition: 'attachment', dispositionParameters: { filename: 'scan.png' }, id: '<s@x>' }],
+    ['an inline PDF without a filename', false, { type: 'application/pdf', disposition: 'inline' }],
+    ['an inline text part with a filename', false, { type: 'text/plain', disposition: 'inline', dispositionParameters: { filename: 'notes.txt' } }],
+  ])('%s: counted = %s', (_name, counted, leaf) => {
+    const tree: MessageStructureObject = { type: 'multipart/mixed', childNodes: [{ part: '1', type: 'text/html' }, { part: '2', size: 10, ...leaf }] };
+    expect(attachmentsFromStructure(tree).length).toBe(counted ? 1 : 0);
   });
   it('lists an attached email as one attachment without its contents', () => {
     expect(attachmentsFromStructure(withForwardedMail)).toEqual([{ filename: 'fwd.eml', mimeType: 'message/rfc822', size: 4321 }]);

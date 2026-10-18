@@ -64,8 +64,17 @@ export function attachmentsFromStructure(node: MessageStructureObject | undefine
   // An attached email is a single attachment: its inner parts are not attachments of this message.
   if (node.type === 'message/rfc822') return [{ filename: filename ?? 'message.eml', mimeType: node.type, size: node.size ?? 0 }];
   if (node.childNodes && node.childNodes.length > 0) return node.childNodes.flatMap(attachmentsFromStructure);
-  const isAttachment = node.disposition === 'attachment' || (!node.disposition && !!filename && !node.type.startsWith('text/'));
-  return isAttachment ? [{ filename: filename ?? 'unnamed', mimeType: node.type, size: node.size ?? 0 }] : [];
+  return isAttachment(node, filename) ? [{ filename: filename ?? 'unnamed', mimeType: node.type, size: node.size ?? 0 }] : [];
+}
+
+/**
+ * An explicit attachment, or a named non-text leaf whatever its disposition (Apple Mail and iOS send files inline).
+ * An image with a Content-ID is referenced from the HTML (a signature logo, a pasted picture), so it is part of the body.
+ */
+function isAttachment(node: MessageStructureObject, filename: string | undefined): boolean {
+  if (node.disposition === 'attachment') return true;
+  if (!filename || node.type.startsWith('text/')) return false;
+  return !(node.type.startsWith('image/') && node.id);
 }
 
 /**
