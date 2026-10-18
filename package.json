@@ -17,6 +17,7 @@
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run",
     "test:integration": "docker compose -f docker-compose.test.yml up -d && vitest run -c vitest.integration.config.ts",
+    "test:package": "vitest run -c vitest.package.config.ts",
     "test:all": "npm run typecheck && npm test && npm run test:integration"
   },
   "dependencies": {
