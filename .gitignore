@@ -4,3 +4,4 @@ coverage/
 *.db
 *.db-wal
 *.db-shm
+.vitest/
