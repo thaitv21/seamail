@@ -1,5 +1,6 @@
 import { parseArgs } from 'node:util';
 import type { PasswordStore } from '../core/config.js';
+import { MailError } from '../core/errors.js';
 import { createContext } from './context.js';
 
 /** Debugging aid: prints search_emails results as text. */
@@ -16,6 +17,7 @@ export async function runSearch(home: string, passwords: PasswordStore, argv: st
       limit: { type: 'string' },
     },
   });
+  const limit = values.limit === undefined ? undefined : parseLimit(values.limit);
   const ctx = createContext(home, passwords);
   try {
     const res = await ctx.core.search({
@@ -25,7 +27,7 @@ export async function runSearch(home: string, passwords: PasswordStore, argv: st
       folder: values.folder,
       after: values.after,
       before: values.before,
-      limit: values.limit ? Number(values.limit) : undefined,
+      limit,
     });
     for (const r of res.results) {
       process.stdout.write(`${r.date.slice(0, 10)}  ${r.from.address.padEnd(32)}  ${r.subject}\n    [${r.id}] ${r.snippet}\n`);
@@ -34,4 +36,10 @@ export async function runSearch(home: string, passwords: PasswordStore, argv: st
   } finally {
     ctx.close();
   }
+}
+
+function parseLimit(value: string): number {
+  const limit = /^\d+$/.test(value) ? Number(value) : 0;
+  if (limit < 1) throw new MailError('INVALID_INPUT', `--limit must be a positive whole number, got "${value}"`);
+  return limit;
 }

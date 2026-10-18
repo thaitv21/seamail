@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { runSetup } from '../../src/cli/setup.js';
-import { loadConfig, saveConfig, type AppConfig } from '../../src/core/config.js';
+import { keychainAccount, loadConfig, saveConfig, type AppConfig } from '../../src/core/config.js';
 import type { RemoteFolder } from '../../src/core/imap/client.js';
 import { TEST_CONFIG } from '../helpers/core.js';
 import { memoryPasswordStore } from '../helpers/passwords.js';
@@ -104,5 +104,20 @@ describe('runSetup', () => {
       await runSetup(home, memoryPasswordStore());
       expect(loadConfig(home).drafts.folder).toBe('Drafts');
     });
+  });
+
+  it('asks again for an empty password', async () => {
+    withAnswers([[/password/i, ['', 'secret']]]);
+    const passwords = memoryPasswordStore();
+    await runSetup(home, passwords);
+    expect(h.rejections.map((r) => [r.message, r.answer])).toEqual([[expect.stringMatching(/password/i), '']]);
+    expect(passwords.get(keychainAccount(loadConfig(home)))).toBe('secret');
+  });
+
+  it('asks again for a port outside 1-65535', async () => {
+    withAnswers([[/^IMAP port/, ['0', '65536', '99999999', '143']]]);
+    await runSetup(home, memoryPasswordStore());
+    expect(h.rejections.map((r) => r.answer)).toEqual(['0', '65536', '99999999']);
+    expect(loadConfig(home).imap.port).toBe(143);
   });
 });

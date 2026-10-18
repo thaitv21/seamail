@@ -46,6 +46,28 @@ describe('sea-mail CLI (built)', () => {
     expect(spawnSync(process.execPath, [CLI, 'bogus'], { encoding: 'utf8' }).status).toBe(1);
   });
 
+  const run = (args: string[], env: Record<string, string> = {}) =>
+    spawnSync(process.execPath, [CLI, ...args], { encoding: 'utf8', env: cleanEnv({ SEA_MAIL_HOME: home, DEBUG: '', ...env }) });
+  const STACK_FRAME = /^\s+at /m;
+
+  it('rejects a --limit that is not a positive whole number', () => {
+    for (const limit of ['abc', '0', '2.5']) {
+      const r = run(['search', 'bao gia', '--limit', limit]);
+      expect(r.status).toBe(1);
+      expect(r.stderr).toMatch(/^INVALID_INPUT: --limit /);
+      expect(r.stdout).toBe('');
+    }
+    expect(run(['search', 'bao gia', '--limit', '5']).stdout).toContain('Báo giá server');
+  });
+
+  it('prints an unexpected error as one line, with the stack only under DEBUG', () => {
+    const plain = run(['search', '--bogus']);
+    expect(plain.status).toBe(1);
+    expect(plain.stderr).toContain("Unknown option '--bogus'");
+    expect(plain.stderr).not.toMatch(STACK_FRAME);
+    expect(run(['search', '--bogus'], { DEBUG: '1' }).stderr).toMatch(STACK_FRAME);
+  });
+
   it('serves MCP over stdio with a clean stdout', async () => {
     // The client reports every non-JSON-RPC line the server writes to stdout through onerror.
     const errors: Error[] = [];

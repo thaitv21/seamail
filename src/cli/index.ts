@@ -37,8 +37,13 @@ async function main(argv: string[]): Promise<void> {
 }
 
 main(process.argv.slice(2)).catch((err: unknown) => {
-  const message =
-    err instanceof MailError ? `${err.code}: ${err.message}` : err instanceof Error ? (err.stack ?? err.message) : String(err);
-  process.stderr.write(`${message}\n`);
+  process.stderr.write(`${describeError(err)}\n`);
   process.exit(1);
 });
+
+/** One line for the user; set DEBUG to also get the stack of an unexpected error. */
+function describeError(err: unknown): string {
+  if (err instanceof MailError) return `${err.code}: ${err.message}`;
+  if (!(err instanceof Error)) return String(err);
+  return process.env.DEBUG ? (err.stack ?? err.message) : err.message;
+}

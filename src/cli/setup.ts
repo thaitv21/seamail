@@ -5,6 +5,11 @@ import { runSync } from './sync.js';
 
 const required = (value: string): boolean | string => value.trim() !== '' || 'Required';
 
+const validPort = (value: string): boolean | string => {
+  const port = /^\d+$/.test(value.trim()) ? Number(value) : NaN;
+  return (port >= 1 && port <= 65535) || 'Enter a port number from 1 to 65535';
+};
+
 export async function runSetup(home: string, passwords: PasswordStore): Promise<void> {
   let existing: AppConfig | undefined;
   try {
@@ -19,11 +24,15 @@ export async function runSetup(home: string, passwords: PasswordStore): Promise<
     await input({
       message: 'IMAP port',
       default: String(existing?.imap.port ?? (secure ? 993 : 143)),
-      validate: (v) => /^\d+$/.test(v.trim()) || 'Enter a port number',
+      validate: validPort,
     }),
   );
   const user = await input({ message: 'IMAP username', default: existing?.imap.user, validate: required });
-  const pass = await password({ message: 'IMAP password (stored in the OS keychain)', mask: '*' });
+  const pass = await password({
+    message: 'IMAP password (stored in the OS keychain)',
+    mask: '*',
+    validate: (v) => v !== '' || 'Required',
+  });
   const email = await input({
     message: 'Your email address',
     default: existing?.identity.email ?? (user.includes('@') ? user : undefined),

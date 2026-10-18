@@ -97,6 +97,7 @@ In `claude_desktop_config.json`:
 | Results marked `"stale": true` | The server was unreachable; answers come from the last sync |
 
 `sea-mail search "bao gia" --after 2026-08-01` checks the index without an AI client. Server logs go to stderr.
+Run a command with `DEBUG=1` to see the stack trace of an unexpected error.
 
 ## Development
 
