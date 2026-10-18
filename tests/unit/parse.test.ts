@@ -1,7 +1,7 @@
 import type { MessageStructureObject } from 'imapflow';
 import MailComposer from 'nodemailer/lib/mail-composer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { attachmentsFromStructure, buildNewMessage, pickTextPart, type RawMessage } from '../../src/core/imap/parse.js';
+import { attachmentsFromStructure, buildNewMessage, hasPlainAlternative, pickTextPart, type RawMessage } from '../../src/core/imap/parse.js';
 
 const mixed: MessageStructureObject = {
   type: 'multipart/mixed',
@@ -86,6 +86,43 @@ describe('attachmentsFromStructure', () => {
   });
 });
 
+/** A hand-built multipart/mixed message from (content type, UTF-8 body) pairs. */
+function mixedSource(...parts: Array<[string, string]>): Buffer {
+  const b = 'sea-boundary';
+  const body = parts
+    .map(([type, content]) => `--${b}\r\nContent-Type: ${type}; charset=utf-8\r\nContent-Transfer-Encoding: 8bit\r\n\r\n${content}\r\n`)
+    .join('');
+  return Buffer.from(
+    `From: a@example.test\r\nTo: me@example.test\r\nSubject: x\r\nMIME-Version: 1.0\r\nContent-Type: multipart/mixed; boundary=${b}\r\n\r\n${body}--${b}--\r\n`,
+    'utf8',
+  );
+}
+
+describe('hasPlainAlternative', () => {
+  const alternative = (children: MessageStructureObject[]): MessageStructureObject => ({ type: 'multipart/alternative', childNodes: children });
+  it('is true for a multipart/alternative with a text/plain child, at any depth', () => {
+    expect(hasPlainAlternative(mixed)).toBe(true);
+    expect(hasPlainAlternative({ type: 'multipart/related', childNodes: [alternative([{ type: 'text/plain', part: '1.1' }, { type: 'text/html', part: '1.2' }])] })).toBe(true);
+  });
+  it('is false without a multipart/alternative that offers text/plain', () => {
+    expect(hasPlainAlternative(undefined)).toBe(false);
+    expect(hasPlainAlternative({ type: 'text/html' })).toBe(false);
+    expect(hasPlainAlternative({ type: 'multipart/mixed', childNodes: [{ type: 'text/html', part: '1' }, { type: 'text/plain', part: '2' }] })).toBe(false);
+    expect(hasPlainAlternative(alternative([{ type: 'text/html', part: '1' }]))).toBe(false);
+  });
+  it('does not look inside an attached email', () => {
+    expect(hasPlainAlternative(withForwardedMail)).toBe(false);
+    const attachedAlternative: MessageStructureObject = {
+      type: 'multipart/mixed',
+      childNodes: [
+        { type: 'text/html', part: '1' },
+        { type: 'message/rfc822', part: '2', childNodes: [alternative([{ type: 'text/plain', part: '2.1' }, { type: 'text/html', part: '2.2' }])] },
+      ],
+    };
+    expect(hasPlainAlternative(attachedAlternative)).toBe(false);
+  });
+});
+
 describe('buildNewMessage', () => {
   const raw: RawMessage = {
     uid: 9,
@@ -138,7 +175,7 @@ describe('buildNewMessage', () => {
       '<table><tr><td>Sản phẩm</td><td>Giá</td></tr><tr><td>A</td><td>100</td></tr></table>' +
       '<img src="https://t.example/p.gif"><p><a href="https://evil.example/x">Xem link</a></p>';
     const source = await new MailComposer({ from: 'a@example.test', to: 'me@example.test', subject: 'x', html }).compile().build();
-    const m = await buildNewMessage(raw, { kind: 'source', source }, ctx);
+    const m = await buildNewMessage({ ...raw, bodyStructure: { type: 'text/html' } }, { kind: 'source', source }, ctx);
     expect(m.bodyText).toMatch(/Sản phẩm\s+Giá/);
     expect(m.bodyText).toContain('Xem link');
     expect(m.bodyText).not.toContain('https://');
@@ -154,7 +191,28 @@ describe('buildNewMessage', () => {
     })
       .compile()
       .build();
-    expect((await buildNewMessage(raw, { kind: 'source', source }, ctx)).bodyText).toBe('Phần văn bản thuần.');
+    const alternativeRaw = { ...raw, bodyStructure: { type: 'multipart/alternative', childNodes: [{ part: '1', type: 'text/plain' }, { part: '2', type: 'text/html' }] } satisfies MessageStructureObject };
+    expect((await buildNewMessage(alternativeRaw, { kind: 'source', source }, ctx)).bodyText).toBe('Phần văn bản thuần.');
+  });
+
+  it('keeps the html body of a multipart/mixed message that also has a text/plain part', async () => {
+    const html = '<p>Báo giá server</p><table><tr><td>Sản phẩm</td><td>Giá</td></tr><tr><td>A100</td><td>5.000.000</td></tr></table>';
+    const source = mixedSource(['text/html', html], ['text/plain', '-- \r\nMailing list footer']);
+    const mixedRaw = { ...raw, bodyStructure: { type: 'multipart/mixed', childNodes: [{ part: '1', type: 'text/html' }, { part: '2', type: 'text/plain' }] } satisfies MessageStructureObject };
+    const m = await buildNewMessage(mixedRaw, { kind: 'source', source }, ctx);
+    expect(m.bodyText).toContain('Báo giá server');
+    expect(m.bodyText).toMatch(/Sản phẩm\s+Giá/);
+    expect(m.bodyText).toContain('Mailing list footer');
+    expect(m.parseError).toBe(false);
+  });
+
+  it('keeps both parts of a multipart/mixed message with a text/plain intro before the html', async () => {
+    const source = mixedSource(['text/plain', 'Chuyển tiếp anh xem.'], ['text/html', '<p>Nội dung <b>được chuyển</b></p><table><tr><td>Sản phẩm</td><td>Giá</td></tr></table>']);
+    const mixedRaw = { ...raw, bodyStructure: { type: 'multipart/mixed', childNodes: [{ part: '1', type: 'text/plain' }, { part: '2', type: 'text/html' }] } satisfies MessageStructureObject };
+    const m = await buildNewMessage(mixedRaw, { kind: 'source', source }, ctx);
+    expect(m.bodyText).toContain('Chuyển tiếp anh xem.');
+    expect(m.bodyText).toContain('Nội dung được chuyển');
+    expect(m.bodyText).toMatch(/Sản phẩm\s+Giá/);
   });
 
   it('converts a downloaded html part', async () => {

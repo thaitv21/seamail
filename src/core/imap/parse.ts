@@ -57,6 +57,17 @@ export function attachmentsFromStructure(node: MessageStructureObject | undefine
   return isAttachment ? [{ filename: filename ?? 'unnamed', mimeType: node.type, size: node.size ?? 0 }] : [];
 }
 
+/**
+ * True when some multipart/alternative offers a text/plain version of the body. Plain text is preferred only in that
+ * case; in any other layout mailparser's merged HTML (which already includes the text parts) is the complete body.
+ */
+export function hasPlainAlternative(node: MessageStructureObject | undefined): boolean {
+  // An attached email carries a whole message of its own; its alternatives are not this message's body.
+  if (!node || node.type === 'message/rfc822') return false;
+  if (node.type === 'multipart/alternative' && node.childNodes?.some((c) => c.type === 'text/plain')) return true;
+  return node.childNodes?.some(hasPlainAlternative) ?? false;
+}
+
 export async function buildNewMessage(
   raw: RawMessage,
   body: BodySource,
@@ -72,9 +83,13 @@ export async function buildNewMessage(
   let parseError = body.kind === 'failed';
   try {
     if (body.kind === 'source') {
-      // Skip mailparser's own HTML-to-text so an HTML-only message goes through htmlToPlainText below.
+      // Leave HTML-to-text to htmlToPlainText: mailparser's own conversion runs table cells together and keeps link URLs.
+      // Plain text wins only when it is an alternative to the HTML; otherwise parsed.html (text parts merged in) is the body.
       const parsed = await simpleParser(body.source, { skipHtmlToText: true, skipImageLinks: true });
-      bodyText = chooseBodyText(parsed.text, parsed.html || null);
+      bodyText =
+        parsed.html && !hasPlainAlternative(raw.bodyStructure)
+          ? chooseBodyText(null, parsed.html)
+          : chooseBodyText(parsed.text, parsed.html || null);
     } else if (body.kind === 'part') {
       bodyText = body.type === 'text/plain' ? chooseBodyText(body.content, null) : chooseBodyText(null, body.content);
     }
