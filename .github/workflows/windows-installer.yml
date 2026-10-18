@@ -5,6 +5,7 @@ name: Windows installer
 on:
   push:
     tags: ['v*']
+    branches: ['claude/silly-snyder-987b6e'] # TEMPORARY: lets the workflow run before it is on main
   workflow_dispatch:
 
 permissions:
