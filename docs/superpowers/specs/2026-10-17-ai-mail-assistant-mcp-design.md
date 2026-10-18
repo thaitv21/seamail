@@ -292,7 +292,9 @@ Every tool validates its input with zod and returns JSON text content. Every rea
 - **From:** `config.identity` (`{ name, email }`), collected during `setup`.
 - **New draft:** `to` and `subject` are required.
 - **Reply** (`replyToId` set):
-  - `to` defaults to the original's `Reply-To`, or else its `From`.
+  - `to` defaults to the original's `Reply-To`, or else its `From`. When the user sent the original (its `From` is
+    `config.identity.email`, e.g. a message in Sent), it defaults to the original's To instead. An empty `to` counts
+    as not provided.
   - `replyAll` adds the original's To and Cc, minus the user's own address.
   - `subject` defaults to `Re: <original subject>`, without stacking a second `Re:`.
   - Set `In-Reply-To` to the original's Message-ID, and set `References` to the original's References

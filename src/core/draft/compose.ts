@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import MailComposer from 'nodemailer/lib/mail-composer';
 import { MailError } from '../errors.js';
-import type { DraftInput, StoredMessage } from '../types.js';
+import type { Address, DraftInput, StoredMessage } from '../types.js';
 
 export interface DraftContext {
   identity: { name: string; email: string };
@@ -28,8 +28,7 @@ export async function buildDraft(input: DraftInput, ctx: DraftContext): Promise<
   let cc: string[];
   let subject: string;
   if (original) {
-    const fallback = original.replyTo.length > 0 ? original.replyTo : original.from ? [original.from] : [];
-    to = unique(input.to ?? fallback.map((a) => a.address));
+    to = unique(input.to?.length ? input.to : replyRecipients(original, self).map((a) => a.address));
     const everyone = input.replyAll ? [...original.to, ...original.cc].map((a) => a.address) : [];
     cc = unique([...(input.cc ?? []), ...everyone]).filter((a) => a !== self && !to.includes(a));
     subject = input.subject ?? reSubject(original.subject);
@@ -75,6 +74,13 @@ export async function buildDraft(input: DraftInput, ctx: DraftContext): Promise<
   });
   const raw = await composer.compile().build();
   return { raw, messageId, to, cc, subject };
+}
+
+/** Who a reply goes to by default: the original's recipients when the user sent it (Sent folder), else its sender. */
+function replyRecipients(original: StoredMessage, self: string): Address[] {
+  if (original.from?.address.toLowerCase() === self) return original.to;
+  if (original.replyTo.length > 0) return original.replyTo;
+  return original.from ? [original.from] : [];
 }
 
 function unique(addresses: string[]): string[] {

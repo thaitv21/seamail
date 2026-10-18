@@ -91,7 +91,7 @@ export function createMcpServer(core: MailCore, version: string): McpServer {
         'Save a draft in the Drafts folder for the user to review and send from Outlook. Cannot send. ' +
         'For a reply pass replyToId; recipients, "Re:" subject, threading headers, signature and quote are filled in.',
       inputSchema: {
-        to: z.array(z.string()).optional().describe('Recipient addresses; defaults to the original sender when replying'),
+        to: z.array(z.string()).optional().describe('Recipient addresses; when replying, defaults to the original sender (or its recipients if the user sent it)'),
         cc: z.array(z.string()).optional(),
         subject: z.string().optional().describe('Defaults to "Re: <original subject>" when replying'),
         body: z.string().min(1).describe('Plain text; separate paragraphs with a blank line'),
