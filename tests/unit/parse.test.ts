@@ -86,11 +86,14 @@ describe('attachmentsFromStructure', () => {
   });
 });
 
-/** A hand-built multipart/mixed message from (content type, UTF-8 body) pairs. */
-function mixedSource(...parts: Array<[string, string]>): Buffer {
+/** A hand-built multipart/mixed message from (content type, UTF-8 body, extra header lines) parts. */
+function mixedSource(...parts: Array<[string, string, ...string[]]>): Buffer {
   const b = 'sea-boundary';
   const body = parts
-    .map(([type, content]) => `--${b}\r\nContent-Type: ${type}; charset=utf-8\r\nContent-Transfer-Encoding: 8bit\r\n\r\n${content}\r\n`)
+    .map(
+      ([type, content, ...headers]) =>
+        `--${b}\r\n${[`Content-Type: ${type}; charset=utf-8`, 'Content-Transfer-Encoding: 8bit', ...headers].join('\r\n')}\r\n\r\n${content}\r\n`,
+    )
     .join('');
   return Buffer.from(
     `From: a@example.test\r\nTo: me@example.test\r\nSubject: x\r\nMIME-Version: 1.0\r\nContent-Type: multipart/mixed; boundary=${b}\r\n\r\n${body}--${b}--\r\n`,
@@ -213,6 +216,38 @@ describe('buildNewMessage', () => {
     expect(m.bodyText).toContain('Chuyển tiếp anh xem.');
     expect(m.bodyText).toContain('Nội dung được chuyển');
     expect(m.bodyText).toMatch(/Sản phẩm\s+Giá/);
+  });
+
+  it('keeps the outer html and the footer around an inline attached email', async () => {
+    const embedded = [
+      'From: b@example.test',
+      'To: a@example.test',
+      'Subject: Original',
+      'Content-Type: text/plain; charset=utf-8',
+      '',
+      'Nội dung thư gốc.',
+    ].join('\r\n');
+    const source = mixedSource(
+      ['text/html', '<p>Anh xem thư <b>bên dưới</b>.</p>'],
+      ['message/rfc822', embedded, 'Content-Disposition: inline'],
+      ['text/plain', '-- \r\nMailing list footer'],
+    );
+    const mixedRaw = {
+      ...raw,
+      bodyStructure: {
+        type: 'multipart/mixed',
+        childNodes: [
+          { part: '1', type: 'text/html' },
+          { part: '2', type: 'message/rfc822', disposition: 'inline', childNodes: [{ part: '2', type: 'text/plain' }] },
+          { part: '3', type: 'text/plain' },
+        ],
+      } satisfies MessageStructureObject,
+    };
+    const m = await buildNewMessage(mixedRaw, { kind: 'source', source }, ctx);
+    expect(m.bodyText).toContain('Anh xem thư bên dưới.');
+    expect(m.bodyText).toContain('Mailing list footer');
+    expect(m.bodyText).not.toMatch(/Subject:\s+Original/);
+    expect(m.parseError).toBe(false);
   });
 
   it('converts a downloaded html part', async () => {

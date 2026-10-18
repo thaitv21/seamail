@@ -1,5 +1,5 @@
 import type { MessageAddressObject, MessageEnvelopeObject, MessageStructureObject } from 'imapflow';
-import { simpleParser } from 'mailparser';
+import { simpleParser, type SimpleParserOptions } from 'mailparser';
 import { log } from '../log.js';
 import { chooseBodyText } from '../text/body.js';
 import { deriveThreadId, makeMsgKey, normalizeMessageId, parseMessageIds } from '../text/thread.js';
@@ -23,6 +23,17 @@ export type BodySource =
   | { kind: 'failed' };
 
 type TextType = 'text/plain' | 'text/html';
+
+/**
+ * Leave HTML-to-text to htmlToPlainText: mailparser's own conversion runs table cells together and keeps link URLs.
+ * ignoreEmbedded keeps an inline attached email out of the body: merged in, its header block is malformed HTML that
+ * cuts off everything after it. mailparser passes it on to mailsplit, so @types/mailparser does not list it.
+ */
+const PARSER_OPTIONS: SimpleParserOptions & { ignoreEmbedded: boolean } = {
+  skipHtmlToText: true,
+  skipImageLinks: true,
+  ignoreEmbedded: true,
+};
 
 export function pickTextPart(node: MessageStructureObject | undefined): { part: string; type: TextType } | null {
   for (const type of ['text/plain', 'text/html'] as const) {
@@ -83,9 +94,8 @@ export async function buildNewMessage(
   let parseError = body.kind === 'failed';
   try {
     if (body.kind === 'source') {
-      // Leave HTML-to-text to htmlToPlainText: mailparser's own conversion runs table cells together and keeps link URLs.
       // Plain text wins only when it is an alternative to the HTML; otherwise parsed.html (text parts merged in) is the body.
-      const parsed = await simpleParser(body.source, { skipHtmlToText: true, skipImageLinks: true });
+      const parsed = await simpleParser(body.source, PARSER_OPTIONS);
       bodyText =
         parsed.html && !hasPlainAlternative(raw.bodyStructure)
           ? chooseBodyText(null, parsed.html)
