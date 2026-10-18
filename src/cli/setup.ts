@@ -40,16 +40,16 @@ export async function runSetup(home: string, passwords: PasswordStore): Promise<
     await session.close();
   }
 
+  const configured = existing?.drafts.folder ?? null;
   const detected = folders.find((f) => f.specialUse === '\\Drafts')?.path ?? null;
-  const draftsFolder =
-    detected ??
-    (await select({
-      message: 'Which folder holds your drafts?',
-      choices: folders.map((f) => ({ name: f.path, value: f.path })),
-    }));
-
-  // Keep a folder set by hand; otherwise persist the detected or selected one.
-  const savedDraftsFolder = existing?.drafts.folder ?? draftsFolder;
+  // A detected Drafts folder never overrides one set by hand; when none is detected the user's pick is saved.
+  const savedDraftsFolder = detected
+    ? (configured ?? detected)
+    : await select({
+        message: 'Which folder holds your drafts?',
+        choices: folders.map((f) => ({ name: f.path, value: f.path })),
+        default: configured ?? undefined,
+      });
   const config: AppConfig = {
     imap: { host, port, secure, user },
     identity: { name, email },
