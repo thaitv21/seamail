@@ -35,8 +35,14 @@ if (major !== Number(NODE_VERSION.split('.')[0])) {
 
 const { version } = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
 
+// No install scripts: none of the dependencies needs one, but npm ci would still run
+// `node-gyp rebuild` for better-sqlite3 (the lockfile drops its "gypfile": false), and node-gyp
+// stops when it finds no Visual Studio it supports, although that build would compile nothing
+// next to the prebuilt binary better-sqlite3 ships.
+const CI = ['ci', '--ignore-scripts', '--no-audit', '--no-fund'];
+
 step('Building sea-mail');
-npm(ROOT, 'ci', '--no-audit', '--no-fund');
+npm(ROOT, ...CI);
 fs.rmSync(path.join(ROOT, 'dist'), { recursive: true, force: true });
 npm(ROOT, 'run', 'build');
 
@@ -45,7 +51,7 @@ fs.rmSync(LAYOUT, { recursive: true, force: true });
 fs.mkdirSync(APP, { recursive: true });
 fs.cpSync(path.join(ROOT, 'dist'), path.join(APP, 'dist'), { recursive: true });
 for (const file of ['package.json', 'package-lock.json']) fs.copyFileSync(path.join(ROOT, file), path.join(APP, file));
-npm(APP, 'ci', '--omit=dev', '--no-audit', '--no-fund');
+npm(APP, ...CI, '--omit=dev');
 fs.rmSync(path.join(APP, 'package-lock.json'));
 // better-sqlite3 ships its C sources and a prebuilt binary for every platform; keep only ours.
 const sqlite = path.join(APP, 'node_modules', 'better-sqlite3');
